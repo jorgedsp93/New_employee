@@ -1,0 +1,99 @@
+function onEdit(e) {
+  var range = e.range;
+  var sheet = range.getSheet();
+  var editedColumn = range.getColumn();
+  var editedRow = range.getRow();
+
+  // Set the datestamp and time when a new name is added in the first column
+  if (editedColumn === 1 && editedRow > 1 && range.getValue() !== '') {
+    var dateStampCell = sheet.getRange(editedRow, 15); // Assuming column 15 is the datestamp column
+    var timeCell = sheet.getRange(editedRow, 16); // Assuming column 16 is the time column
+    if (!dateStampCell.getValue()) {
+      dateStampCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
+    }
+    if (!timeCell.getValue()) {
+      timeCell.setValue(new Date()).setNumberFormat("HH:mm:ss");
+    }
+  }
+
+  // Check if the checkbox in column K is checked to set the request date and time in columns Q and R
+  if (editedColumn === 11 && editedRow > 1 && range.isChecked()) {
+    var dateCell = sheet.getRange(editedRow, 17); // Column Q for the date the request was made
+    var timeCell = sheet.getRange(editedRow, 18); // Column R for the time the request was made
+    dateCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
+    timeCell.setValue(new Date()).setNumberFormat("HH:mm:ss");
+
+    // Example function tied to checking the box in column K
+    sendNewHireEmail(sheet, editedRow);
+  }
+
+  // Check if the checkbox in column L is checked to set the request date in column S
+  if (editedColumn === 12 && editedRow > 1 && range.isChecked()) {
+    var requestDateCell = sheet.getRange(editedRow, 19); // Column S for the request date when checkbox in column L is checked
+    requestDateCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
+  }
+
+  // Check if the checkbox in column M is checked to set the request date in column T
+  if (editedColumn === 13 && editedRow > 1 && range.isChecked()) {
+    var completionDateCell = sheet.getRange(editedRow, 20); // Column T for the date when checkbox in column M is checked
+    completionDateCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
+  }
+
+  // Check if the checkbox in column N is checked to set the request date in column U
+  if (editedColumn === 14 && editedRow > 1 && range.isChecked()) {
+    var finalDateCell = sheet.getRange(editedRow, 21); // Column U for the date when checkbox in column N is checked
+    finalDateCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
+  }
+
+  // Additional functionalities for email notifications based on other column edits
+  var columnsToCheck = [12, 13, 14]; // Columns L, M, N for completion checks
+  if (columnsToCheck.includes(editedColumn) && editedRow > 1) {
+    checkAndSendCompletionEmail(sheet, editedRow, columnsToCheck);
+  }
+}
+
+function sendNewHireEmail(sheet, row) {
+  var rowData = sheet.getRange(row, 1, 1, 14).getValues()[0];
+  var emailAddress = 'INSERT EMAIL ADDRESS HERE'; // Use your actual email address
+  var subject = 'New Hire Equipment and Access Setup';
+  var startDate = Utilities.formatDate(new Date(rowData[2]), Session.getScriptTimeZone(), "yyyy-MM-dd");
+
+  var body = `<p>Hello!</p>
+              <p><strong>${rowData[0]} ${rowData[1]}</strong> was recently hired at MeadowBrook Construction, scheduled to begin on <strong>${startDate}</strong> in the <strong>${rowData[3]}</strong> department.</p>
+              <p>Our Human Resource Manager has determined that the following will be required:</p>
+              <ul>`;
+
+  if (rowData[4]) { body += '<li><strong>IT:</strong> responsible for setting up laptops.</li>'; }
+  if (rowData[5]) { body += '<li><strong>Admin:</strong> in charge of setting up the phone.</li>'; }
+  if (rowData[6]) { body += '<li><strong>Admin:</strong> in charge of assigning vehicles.</li>'; }
+  if (rowData[9]) { body += '<li><strong>Admin:</strong> in charge of setting up fob keys.</li>'; }
+  if (rowData[7]) { body += '<li><strong>Accounting:</strong> in charge of setting up gas cards.</li>'; }
+  if (rowData[8]) { body += '<li><strong>Accounting:</strong> in charge of setting up Home Depot cards.</li>'; }
+
+  body += `</ul>
+           <p>Once you have completed your assignment, please check the appropriate box in the following document: <a href="https://docs.google.com/spreadsheets/d/1b0VKjDs0nFkFcEL94M0xVxp2uP0_h__3G0zhXZoDaN4/edit#gid=0">Assignment Confirmation Sheet</a>.</p>
+           <p>Please ask any questions you need to understand what your assignment is, and do not assume anything unless directed otherwise.</p>
+           <p>Best regards,</p>
+           <p>MeadowBrook Construction Team</p>`;
+
+  MailApp.sendEmail(emailAddress, subject, body, {htmlBody: body});
+}
+
+function checkAndSendCompletionEmail(sheet, row, columnsToCheck) {
+  var checkboxes = sheet.getRange(row, 12, 1, 3).getValues()[0]; // Get values from columns L, M, N
+  if (checkboxes.every(value => value === true)) {
+    var rowData = sheet.getRange(row, 1, 1, 14).getValues()[0];
+    var emailAddress = 'INSERT EMAIL ADDRESSESS HERE';
+    var subject = 'Task Completion Confirmation';
+    var body = `<p>Hello,</p>
+                <p>This is to confirm that all assignments for <strong>${rowData[0]} ${rowData[1]}</strong>, who started on ${Utilities.formatDate(new Date(rowData[2]), Session.getScriptTimeZone(), "yyyy-MM-dd")} in the <strong>${rowData[3]}</strong> department, have been completed as required.</p>
+                <p>Please verify and proceed with the next steps.</p>
+                <p>Best regards,</p>
+                <p>MeadowBrook Construction Team</p>`;
+
+    MailApp.sendEmail(emailAddress, subject, body, {htmlBody: body});
+    Logger.log('Confirmation email sent to: ' + emailAddress);
+  } else {
+    Logger.log('Not all assignments are completed yet.');
+  }
+}
