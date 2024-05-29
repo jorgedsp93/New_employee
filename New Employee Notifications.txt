@@ -3,6 +3,7 @@ function onEdit(e) {
   var sheet = range.getSheet();
   var editedColumn = range.getColumn();
   var editedRow = range.getRow();
+  
 
   // Set the datestamp and time when a new name is added in the first column
   if (editedColumn === 1 && editedRow > 1 && range.getValue() !== '') {
@@ -23,8 +24,11 @@ function onEdit(e) {
     dateCell.setValue(new Date()).setNumberFormat("yyyy-MM-dd");
     timeCell.setValue(new Date()).setNumberFormat("HH:mm:ss");
 
-    // Example function tied to checking the box in column K
-    sendNewHireEmail(sheet, editedRow);
+    // Ensure the function only triggers when the checkbox changes from unchecked to checked
+    if (e.oldValue !== 'TRUE' && e.value === 'TRUE') {
+      Logger.log("Checkbox in column K was checked. Triggering sendNewHireEmail.");
+      sendNewHireEmail(sheet, editedRow);
+    }
   }
 
   // Check if the checkbox in column L is checked to set the request date in column S
@@ -53,37 +57,72 @@ function onEdit(e) {
 }
 
 function sendNewHireEmail(sheet, row) {
-  var rowData = sheet.getRange(row, 1, 1, 14).getValues()[0];
-  var emailAddress = 'INSERT EMAIL ADDRESS HERE'; // Use your actual email address
-  var subject = 'New Hire Equipment and Access Setup';
+  // Check if the sheet object is valid
+  if (!sheet || typeof sheet.getRange !== 'function') {
+    Logger.log("Invalid sheet object passed to sendNewHireEmail.");
+    return; // Exit the function if the sheet is not valid
+  }
+
+  // Fetch row data
+  var rowData = sheet.getRange(row, 1, 1, 21).getValues()[0];
+  var subject = 'Setup Required for New Hire';
   var startDate = Utilities.formatDate(new Date(rowData[2]), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var sheetLink = 'https://docs.google.com/spreadsheets/d/1b0VKjDs0nFkFcEL94M0xVxp2uP0_h__3G0zhXZoDaN4/edit?usp=sharing'; // Ensure this link is correct
+  var ccEmail = '{}'; // Your email to be CC'd on all correspondences
 
-  var body = `<p>Hello!</p>
-              <p><strong>${rowData[0]} ${rowData[1]}</strong> was recently hired at MeadowBrook Construction, scheduled to begin on <strong>${startDate}</strong> in the <strong>${rowData[3]}</strong> department.</p>
-              <p>Our Human Resource Manager has determined that the following will be required:</p>
-              <ul>`;
+  // IT email setup for laptop
+  if (rowData[4]) {
+    var itEmail = '{}';  // Update with the actual IT email
+    var itBody = `<p>Hello Lee,</p>
+                  <p>We're excited to welcome <strong>${rowData[0]} ${rowData[1]}</strong>, who was recently hired to join our HR team starting <strong>${startDate}</strong>. Please set up the <strong>${rowData[4]}</strong> laptop for them.</p>
+                  <p>Please mark the setup as complete in our <a href="${sheetLink}">onboarding spreadsheet</a>.</p>
+                  <p>Thank you very much!</p>
+                  <p>Best regards,</p>
+                  <p>MeadowBrook Construction Team</p>`;
+    MailApp.sendEmail(itEmail, subject, "", {htmlBody: itBody, cc: ccEmail});
+  }
 
-  if (rowData[4]) { body += '<li><strong>IT:</strong> responsible for setting up laptops.</li>'; }
-  if (rowData[5]) { body += '<li><strong>Admin:</strong> in charge of setting up the phone.</li>'; }
-  if (rowData[6]) { body += '<li><strong>Admin:</strong> in charge of assigning vehicles.</li>'; }
-  if (rowData[9]) { body += '<li><strong>Admin:</strong> in charge of setting up fob keys.</li>'; }
-  if (rowData[7]) { body += '<li><strong>Accounting:</strong> in charge of setting up gas cards.</li>'; }
-  if (rowData[8]) { body += '<li><strong>Accounting:</strong> in charge of setting up Home Depot cards.</li>'; }
+  // Admin email setup for phone, vehicle, and fob keys
+  var adminEmail = '{}';  // Update with the actual Admin email
+  var adminBody = `<p>Hello Steph,</p>
+                   <p><strong>${rowData[0]} ${rowData[1]}</strong> is starting with us on <strong>${startDate}</strong> in HR. Please arrange the following for their smooth start:</p>
+                   <ul>`;
+  if (rowData[5]) { adminBody += `<li><strong>Phone</strong></li>`; }
+  if (rowData[6]) { adminBody += `<li><strong>Vehicle</strong></li>`; }
+  if (rowData[9]) { adminBody += `<li><strong>Fob keys</strong></li>`; }
+  adminBody += `</ul>
+                <p>Kindly confirm setup completion in our <a href="${sheetLink}">onboarding spreadsheet</a>.</p>
+                <p>Thanks for your assistance!</p>
+                <p>Best regards,</p>
+                <p>MeadowBrook Construction Team</p>`;
+  if (rowData[5] || rowData[6] || rowData[9]) {
+    MailApp.sendEmail(adminEmail, subject, "", {htmlBody: adminBody, cc: ccEmail});
+  }
 
-  body += `</ul>
-           <p>Once you have completed your assignment, please check the appropriate box in the following document: <a href="https://docs.google.com/spreadsheets/d/1b0VKjDs0nFkFcEL94M0xVxp2uP0_h__3G0zhXZoDaN4/edit#gid=0">Assignment Confirmation Sheet</a>.</p>
-           <p>Please ask any questions you need to understand what your assignment is, and do not assume anything unless directed otherwise.</p>
-           <p>Best regards,</p>
-           <p>MeadowBrook Construction Team</p>`;
-
-  MailApp.sendEmail(emailAddress, subject, body, {htmlBody: body});
+  // Accounting email setup for gas cards, Home Depot cards, and general setup
+  var accountingEmail = 'csamonte@meadowb.com';  // Update with the actual Accounting email
+  var accountingBody = `<p>Hello Criselda,</p>
+                        <p><strong>${rowData[0]} ${rowData[1]}</strong> is joining us starting <strong>${startDate}</strong> in HR. Please prepare the following:</p>
+                        <ul>`;
+  if (rowData[7]) { accountingBody += `<li><strong>Gas card</strong></li>`; }
+  if (rowData[8]) { accountingBody += `<li><strong>Home Depot Card</strong></li>`; }
+  if (!rowData[7] && !rowData[8]) {
+    accountingBody += `<li>Please ensure their details are set up in our system.</li>`;
+  }
+  accountingBody += `</ul>
+                     <p>Please confirm once these tasks are completed in our <a href="${sheetLink}">onboarding spreadsheet</a>.</p>
+                     <p>Thank you for your diligent work!</p>
+                     <p>Best regards,</p>
+                     <p>MeadowBrook Construction Team</p>`;
+  MailApp.sendEmail(accountingEmail, subject, "", {htmlBody: accountingBody, cc: ccEmail});
 }
+
 
 function checkAndSendCompletionEmail(sheet, row, columnsToCheck) {
   var checkboxes = sheet.getRange(row, 12, 1, 3).getValues()[0]; // Get values from columns L, M, N
   if (checkboxes.every(value => value === true)) {
     var rowData = sheet.getRange(row, 1, 1, 14).getValues()[0];
-    var emailAddress = 'INSERT EMAIL ADDRESSESS HERE';
+    var emailAddress = '{}';
     var subject = 'Task Completion Confirmation';
     var body = `<p>Hello,</p>
                 <p>This is to confirm that all assignments for <strong>${rowData[0]} ${rowData[1]}</strong>, who started on ${Utilities.formatDate(new Date(rowData[2]), Session.getScriptTimeZone(), "yyyy-MM-dd")} in the <strong>${rowData[3]}</strong> department, have been completed as required.</p>
